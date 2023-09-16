@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0"/>
+
+<title>TK Interactive</title>
+<script>
+        //SET A URL FOR REMOTE COORDINATES IN THE ""
+        const urlCoords = "https://raw.githubusercontent.com/teamkill-tk/tkGTACoords/main/coordinates.json"
+</script>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+<script src="leaflet-hash.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/fomantic-ui@2.9.3/dist/semantic.min.css">
+<script src="https://cdn.jsdelivr.net/npm/fomantic-ui@2.9.3/dist/semantic.min.js"></script>
+<link rel="stylesheet" href="./leaflet.fullscreen-master/Control.FullScreen.css">
+<script src="./leaflet.fullscreen-master/Control.FullScreen.js"></script>
+<link rel="stylesheet" href=".\Leaflet.EasyButton-master\src\easy-button.css">
+<script src=".\Leaflet.EasyButton-master\src\easy-button.js"></script>
+<style type="text/css">
+html, body { margin: 0px; padding: 0%; }
+#map { width: 100%; height: 100%; }
+body {
+    margin: 0;
+    font-family: Helvetica, Arial, sans-serif; font-size: 12px;
+    overflow: hidden;
+    background-color: rgb(255, 255, 255);
+}
+#trollpic {
+        position: relative;
+        top: -6px;
+}
+#locationpic {
+        position: relative;
+        left: -3px;
+        bottom: -2px;
+}
+#modalDownloadButton {
+        top: 55px;
+}
+textarea {
+        width:100%;
+        max-width:100%;
+}
+.coordinate {
+        color : #000000;
+}
+.coordsUtilsButtons:hover{
+        color:white;
+        background-color: rgb(0, 182, 0);
+}
+</style>
+<style type="text/css">
+.legend {
+        padding: 6px 8px;
+        font: 14px Arial, Helvetica, sans-serif;
+        background: white;
+        background: rgba(255, 255, 255, 0.8);
+        line-height: 24px;
+        color: #555;
+}
+.legend h4 {
+        text-align: center;
+        font-size: 16px;
+        margin: 2px 12px 8px;
+        color: #777;
+}
+
+.legend span {
+        position: relative;
+        bottom: 3px;
+}
+
+.legend i {
+        width: 18px;
+        height: 18px;
+        float: left;
+        margin: 0 8px 0 0;
+        opacity: 0.7;
+}
+.legend img {
+        width: 18px;
+        height: 18px;
+        float: left;
+        margin: 0 8px 0 0;
+        opacity: 0.7;
+}
+
+.legend i.icon {
+        background-size: 18px;
+        background-color: rgba(255, 255, 255, 1);
+}
+</style>
+
+</head>
+<body>
+
+<div id="map"></div>
+<div>
+        <div class="geojson">
+        </div>
+</div>
+<div class="ui large modal">
+        <div class="header">Coordinates Data</div>
+        <div class="content">
+                <div class="ui form">
+                        <div class="field">
+                                <div class="ui fluid left corner labeled icon input">
+                                        <div class="ui left corner label">
+                                                <i class="map marker alternate icon"></i>
+                                        </div>
+                                        <textarea readonly class="transparent geojsontextarea" rows="35"></textarea>
+                                        <i onclick="copyGeoJson()" class="coordsUtilsButtons clone link large icon"></i>
+                                        <i onclick="exportGeoJson()" id="modalDownloadButton" class="coordsUtilsButtons file download link large icon"></i>
+                                </div>
+                        </div>
+                </div>
+        </div>
+        <div class="actions">
+                <div class="ui black fluid cancel button">Back</div>
+        </div>
+</div>
+<div class="ui small modal">
+        <div class="header">Upload Existing Coordinates</div>
+        <div class="content">
+                <div class="ui form">
+                        <div class="field">
+                                <div class="ui fluid">
+                                        <div class="ui negative message">
+                                                <p>Since no Coordinates URL Link was found, you may upload your own JSON file.</p>
+                                        </div>
+                                        <input type="file" id="fileUpload" accept="application/JSON" onchange="loadFile(this.files[0])" class="ui invisible file input">
+                                        <label id="fileUploadLable" for="fileUpload" class="ui placeholder segment">
+                                                <div class="ui icon header">
+                                                <i class="upload icon"></i>
+                                                Click here to upload
+                                                </div>
+                                        </label>
+                                        <div class="ui horizontal divider">
+                                                Or
+                                        </div>
+                                        <div onclick="$('.small.modal').modal('hide')" class="ui black fluid button">Continue without uploading</div>
+                                </div>
+                        </div>
+                </div>
+        </div>
+</div>
+<script type="text/javascript">
+var satellite = L.tileLayer('satellite/{z}/{x}/{y}.png', {
+        attribution: '<a href="http://www.rockstargames.com/V/">Grand Theft Auto V</a>',
+        minZoom: 3, maxZoom: 7, noWrap: true, tms: true
+});
+var game = L.tileLayer('game/{z}/{x}/{y}.png', {
+        attribution: '<a href="http://www.rockstargames.com/V/">Grand Theft Auto V</a>',
+        minZoom: 3, maxZoom: 7, noWrap: true, tms: true
+});
+var map = L.map('map', {layers: game,
+                        maxBoundsViscosity: 1.0,
+                        fullscreenControl: true,
+                        fullscreenControlOptions: {
+                        position: 'topleft'
+                        }});
+var hash = new L.Hash(map);
+map.setView([0, 0], 2);
+var layerControl = L.control.layers({"Game": game}, {}).addTo(map);
+game.bringToFront();
+
+var bounds = [[66.5,-180],[-85.05,0]];
+map.setMaxBounds(bounds);
+
+
+//legend
+var controlBottomLeft = L.control({ position: "bottomleft" });
+controlBottomLeft.onAdd = function(map) 
+{
+        var div = L.DomUtil.create("div", "legend");
+        div.innerHTML += "<h4>Explosives</h4>";
+        div.innerHTML += '<img src="./icons/png/red-storage-tanks.png"><span>Red Storage Tanks</span><br>';
+        div.innerHTML += '<img src="./icons/png/normal-gas-tanks.png"><span>Normal Gas Tanks</span><br>';
+        div.innerHTML += '<img src="./icons/png/gas-station-pumps.png"><span>Gas Station Pump</span><br>';
+        div.innerHTML += '<img src="./icons/png/generators.png"><span>Generator</span><br>';
+        div.innerHTML += '<img src="./icons/svg/burger-stands.svg"><span>Burger Stand</span><br>';
+        div.innerHTML += '<img src="./icons/svg/lpg-round-cylinders.svg"><span>LPG Round Cylinder</span><br>';
+        div.innerHTML += '<img src="./icons/png/lpg-long-cylinders.png"><span>LPG Long Cylinder</span><br>';
+        div.innerHTML += '<img src="./icons/png/gas-cage.png"><span>Gas Cage</span><br>';
+        div.innerHTML += '<img src="./icons/png/tankers.png"><span>Tankers</span><br>';
+        div.innerHTML += '<img src="./icons/png/machinery-explosives.png"><span>Machinery</span><br>';
+        div.innerHTML += '<img src="./icons/png/missiles.png"><span>Missiles</span><br>';
+
+        return div;
+};
+controlBottomLeft.addTo(map);
+
+//Custom Icons
+var iconOptions = 
+{
+        iconUrl: './icons/png/tnt.png',
+        iconSize:[25,25]
+}
+var customIcon = L.icon(iconOptions)
+var iconOptions2 = 
+{
+        iconUrl: './icons/png/red-storage-tanks.png',
+        iconSize:[25,25]
+}
+var customIcon2 = L.icon(iconOptions2)
+var iconOptions3 = 
+{
+        iconUrl: './icons/png/normal-gas-tanks-white.png',
+        iconSize:[25,25]
+}
+var customIcon3 = L.icon(iconOptions3)
+var iconOptions4 = 
+{
+        iconUrl: './icons/png/gas-station-pumps-white.png',
+        iconSize:[35,35]
+}
+var customIcon4 = L.icon(iconOptions4)
+var iconOptions5 = 
+{
+        iconUrl: './icons/png/generators-white.png',
+        iconSize:[30,30]
+}
+var customIcon5 = L.icon(iconOptions5)
+var iconOptions6 = 
+{
+        iconUrl: './icons/png/burger-stands-white.png',
+        iconSize:[35,35]
+}
+var customIcon6 = L.icon(iconOptions6)
+var iconOptions7 = 
+{
+        iconUrl: './icons/svg/lpg-round-cylinders.svg',
+        iconSize:[25,25]
+}
+var customIcon7 = L.icon(iconOptions7)
+var iconOptions8 = 
+{
+        iconUrl: './icons/png/lpg-long-cylinders-white.png',
+        iconSize:[29,29]
+}
+var customIcon8 = L.icon(iconOptions8)
+var iconOptions9 = 
+{
+        iconUrl: './icons/png/gas-cage-white.png',
+        iconSize:[40,40]
+}
+var customIcon9 = L.icon(iconOptions9)
+var iconOptions10 = 
+{
+        iconUrl: './icons/png/tankers.png',
+        iconSize:[32,32]
+}
+var customIcon10 = L.icon(iconOptions10)
+var iconOptions11 = 
+{
+        iconUrl: './icons/png/machinery-explosives.png',
+        iconSize:[40,40]
+}
+var customIcon11 = L.icon(iconOptions11)
+var iconOptions12 = 
+{
+        iconUrl: './icons/png/missiles.png',
+        iconSize:[35,35]
+}
+var customIcon12 = L.icon(iconOptions12)
+
+//Custom Titles
+function returnMarkerTitle(arg1)
+{
+        switch (arg1){
+                case 'red-storage-tanks': return 'Red Storage Tank'
+                case 'normal-gas-tanks': return 'Normal Gas Tank'
+                case 'gas-station-pumps': return 'Gas Station Pump'
+                case 'generators': return 'Generator'
+                case 'burger-stands': return 'Burger Stand'
+                case 'lpg-round-cylinders' : return 'LPG Round Cylinder'
+                case 'lpg-long-cylinders' : return 'LPG Long Cylinder'
+                case 'gas-cage' : return 'Gas Cage'
+                case 'tankers' : return 'Tanker'
+                case 'machinery-explosives' : return 'Machinery Explosives'
+                case 'missiles' : return 'Missiles'
+                case 'other-explosives' : return 'Other Explosives'
+        }
+}
+function returnMarkerTitleReverse(arg1)
+{
+        switch (arg1){
+                case 'Red Storage Tank': return 'red-storage-tanks'
+                case 'Normal Gas Tank': return 'normal-gas-tanks'
+                case 'Gas Station Pump': return 'gas-station-pumps'
+                case 'Generator': return 'generators'
+                case 'Burger Stand': return 'burger-stands'
+                case 'LPG Round Cylinder' : return 'lpg-round-cylinders'
+                case 'LPG Long Cylinder' : return 'lpg-long-cylinders'
+                case 'Gas Cage' : return 'gas-cage'
+                case 'Tanker' : return 'tankers'
+                case 'Machinery Explosives' : return 'machinery-explosives'
+                case 'Missiles' : return 'missiles'
+                case 'Other Explosives' : return 'other-explosives'
+        }
+}
+
+//Custom Marker Options
+function returnMarkerOptions(arg1)
+{
+        switch (arg1){
+                case 'red-storage-tanks': return {
+                        icon: customIcon2,
+                        title: returnMarkerTitle(arg1),
+                        opacity:1,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+                case 'normal-gas-tanks': return {
+                        icon: customIcon3,
+                        title: returnMarkerTitle(arg1),
+                        opacity:1,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+                case 'gas-station-pumps': return {
+                        icon: customIcon4,
+                        title: returnMarkerTitle(arg1),
+                        opacity:1,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+                case 'generators': return {
+                        icon: customIcon5,
+                        title: returnMarkerTitle(arg1),
+                        opacity:1,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+                case 'burger-stands': return {
+                        icon: customIcon6,
+                        title: returnMarkerTitle(arg1),
+                        opacity:1,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+                case 'lpg-round-cylinders' : return {
+                        icon: customIcon7,
+                        title: returnMarkerTitle(arg1),
+                        opacity:1,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+                case 'lpg-long-cylinders' : return {
+                        icon: customIcon8,
+                        title: returnMarkerTitle(arg1),
+                        opacity:1,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+                case 'gas-cage' : return {
+                        icon: customIcon9,
+                        title: returnMarkerTitle(arg1),
+                        opacity:1,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+                case 'tankers' : return {
+                        icon: customIcon10,
+                        title: returnMarkerTitle(arg1),
+                        opacity:1,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+                case 'machinery-explosives' : return {
+                        icon: customIcon11,
+                        title: returnMarkerTitle(arg1),
+                        opacity:1,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+                case 'missiles' : return {
+                        icon: customIcon12,
+                        title: returnMarkerTitle(arg1),
+                        opacity:1,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+                case 'other-explosives' : return {
+                        icon: customIcon,
+                        title: returnMarkerTitle(arg1),
+                        opacity:0.6,
+                        draggable:false,
+                        autoPan:true,
+                        autoPanSpeed:5
+                }
+        }
+}
+var tempMarkerOptions =
+{
+        icon: customIcon,
+        title: "Explosive",
+        opacity:0.6,
+        draggable:false,
+        autoPan:true,
+        autoPanSpeed:5
+}
+
+//right click to add markers
+var createTempMarker;
+map.on("contextmenu", async function(e){
+        createTempMarker = new L.Marker([e.latlng.lat, e.latlng.lng], tempMarkerOptions).addTo(map).bindPopup(`
+        <div hidden>
+                <textarea id="inputid-lat">${e.latlng.lat}</textarea>
+                <textarea id="inputid-lng">${e.latlng.lng}</textarea>
+        </div>
+        <div class="ui mini unstackable steps">
+                <div class="link step">
+                        <div class="content">
+                                <div class="title">Explosive</div>
+                                <div class="description">Choose the Explosive Type</div>
+                        </div>
+                </div>
+                <div class="link step">
+                        <div class="content">
+                                <div class="title">Image</div>
+                                <div class="description">Input Image Link (Discord CDN)</div>
+                        </div>
+                </div>
+                <div class="link step">
+                        <div class="content">
+                                <div class="title">Notes</div>
+                                <div class="description">(Optional) Mention Stuff</div>
+                        </div>
+                </div>
+                <div class="link step">
+                        <div class="content">
+                                <div class="title">Submit</div>
+                        </div>
+                </div>
+        </div>
+        <div onmouseover="initializeUI()" class="ui fluid search selection dropdown">
+                <input id="inputid-explosives" type="hidden" name="explosive-type">
+                <i class="dropdown icon"></i>
+                <div class="default text">Select Explosive Type</div>
+                <div class="menu">
+                        <div class="item" data-value="red-storage-tanks"><img class="ui avatar image" src="icons/png/red-storage-tanks.png">Red Storage Tanks</div>
+                        <div class="item" data-value="normal-gas-tanks"><img class="ui avatar image" src="icons/png/normal-gas-tanks.png">Normal Gas Tanks</div>
+                        <div class="item" data-value="gas-station-pumps"><img class="ui avatar image" src="icons/png/gas-station-pumps.png">Gas Station Pumps</div>
+                        <div class="item" data-value="generators"><img class="ui avatar image" src="icons/png/generators.png">Generators</div>
+                        <div class="item" data-value="burger-stands"><img class="ui avatar image" src="icons/svg/burger-stands.svg">Burger Stands</div>
+                        <div class="item" data-value="lpg-round-cylinders"><img class="ui avatar image" src="icons/svg/lpg-round-cylinders.svg">LPG Round Cylinders</div>
+                        <div class="item" data-value="lpg-long-cylinders"><img class="ui avatar image" src="icons/png/lpg-long-cylinders.png">LPG Long Cylinders</div>
+                        <div class="item" data-value="gas-cage"><img class="ui avatar image" src="icons/png/gas-cage.png">Gas Cage</div>
+                        <div class="item" data-value="tankers"><img class="ui avatar image" src="icons/png/tankers.png">Tankers</div>
+                        <div class="item" data-value="machinery-explosives"><img class="ui avatar image" src="icons/png/machinery-explosives.png">Machinery Explosives</div>
+                        <div class="item" data-value="missiles"><img class="ui avatar image" src="icons/png/missiles.png">Missiles</div>
+                        <div class="item" data-value="other-explosives">Other Explosives</div>
+                </div>
+        </div>
+        <div class="ui fluid labeled input">
+                <div class="ui label">
+                        https://
+                </div>
+                <input id="inputid-imagelink" type="text" required placeholder="cdn.discordapp.com/attachments/xxx/xxx/xxx.jpg">
+        </div>
+        <div class="ui form">
+                <textarea id="inputid-notes" rows="3" style="height: 100px;" placeholder="Mention Extra Notes"></textarea>
+        </div>
+        <div>
+                <button onclick="newMarker()" class="ui animated fade secondary button">
+                        <div class="visible content">Teamkill!</div>
+                        <div class="hidden content">
+                                <img class="ui avatar image" id="trollpic" src="icons/png/troll.png">
+                        </div>
+                </button>
+                <button onclick="deleteNewMarker()" class="negative circular ui right floated icon button">
+                        <i class="trash alternate icon"></i>
+                </button>
+        </div>
+
+        `, {maxWidth: "600"})
+});
+function deleteNewMarker()
+{
+        map.removeLayer(createTempMarker)
+}
+function returnValue3(parav3)
+{
+        if (parav3 == null || !parav3)
+        {
+                return '' 
+        }
+        else
+        {
+                var response = parav3
+                return response
+        }
+}
+function newMarker()
+{
+        var value = document.getElementById('inputid-explosives').value
+        var value2 = document.getElementById('inputid-imagelink').value
+        var value3 = document.getElementById('inputid-notes').value
+        var value4 = document.getElementById('inputid-lat').value
+        var value5 = document.getElementById('inputid-lng').value
+
+        rdy3 = returnValue3(value3)
+
+        if (value == null || value2 == null || !value || !value2)
+        {
+        alert("Missing Explosive Type or Image Link")
+        }
+        else
+        {
+                var expression = /[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)?/gi;
+                var regex = new RegExp(expression);
+                if (!(value2.match(regex))) {
+                        alert("Not URL");
+                }
+                else 
+                {
+                        deleteNewMarker()
+                        
+                        var newMarkerOptions = returnMarkerOptions(value)
+                        var newMarkerTitle = returnMarkerTitle(value)
+                        var actualNewMarker = L.marker([value4, value5],newMarkerOptions).bindPopup(`
+                        <h3 class='ui center aligned header'>
+                                <div class="content">
+                                        ${newMarkerTitle}
+                                </div>
+                        </h3>
+                        <p><small>Coordinates: ${value4}, ${value5}</small></p>
+                        <a href="${value2}" target="_blank" class="ui huge centered rounded image">
+                                <img src="${value2}"></img>
+                        </a>
+                        <br>
+                        <div class="ui bottom attached yellow message">
+                                <i class="sticky note outline icon"></i>
+                                ${rdy3}
+                        </div>
+                        `,{maxWidth: 'auto'});;
+                        actualNewMarker.feature = {};
+                        actualNewMarker.feature.type = 'Feature';
+                        actualNewMarker.feature.properties = {};
+                        actualNewMarker.feature.properties.explosivetype = value;
+                        actualNewMarker.feature.properties.imagelink = value2;
+                        actualNewMarker.feature.properties.notes = rdy3;
+                        actualNewMarker.addTo(map);
+                }
+        }
+}
+
+
+//geojson import file and add to markers on map
+//import via file check
+const promise = fetch(urlCoords)
+        .then((response) => response.json())
+        .then((user) => 
+        {
+                return user;
+        });
+var geoImportArray = []
+async function loadFile(file) {
+        let text = await file.text();
+        geoImportArray.push(text);
+        geojsonfile();
+}
+const checkAndGetGeoJSON = async () =>
+{
+        if(urlCoords == "")
+        {
+                $('.small.modal').modal('show');
+        }
+        else
+        {
+                const a = await promise;
+                geoImportArray.push(a);
+                geojsonfile();
+        }
+}
+const geojsonfile = async () => 
+{
+
+        if(geoImportArray[0] == undefined){}
+        else if (typeof geoImportArray[0] == "object"){}
+        else if (typeof geoImportArray[0] == "string")
+        {
+                var object1 = JSON.parse(geoImportArray[0]);
+                geoImportArray.pop();
+                geoImportArray.push(object1);
+                $('.small.modal').modal('hide');
+        }
+        const importedGeoJSON = geoImportArray[0];
+        L.geoJSON(importedGeoJSON, {
+                pointToLayer: function(feature, latlng) {
+                        var newMarkerOptions = returnMarkerOptions(feature.properties.explosivetype);
+                        return L.marker(latlng, newMarkerOptions);
+                },
+                onEachFeature: function(feature,layer)
+                {
+                        var newMarkerTitle = returnMarkerTitle(feature.properties.explosivetype);
+                        var rdyNotes = returnValue3(feature.properties.notes);
+                        layer.bindPopup(`
+                        <h3 class='ui center aligned header'>
+                                <div class="content">
+                                        ${newMarkerTitle}
+                                </div>
+                        </h3>
+                        <small>Coordinates: ${feature.geometry.coordinates}</small>
+                        <a href="${feature.properties.imagelink}" target="_blank" class="ui huge centered rounded image">
+                                <img src="${feature.properties.imagelink}">
+                        </a>
+                        <br>
+                        <div class="ui bottom attached yellow message">
+                                <i class="sticky note outline icon"></i>
+                                ${rdyNotes}
+                        </div>
+                        `,{maxWidth: "auto"});
+                },
+        }).addTo(map)
+};
+checkAndGetGeoJSON();
+geojsonfile();
+
+//current markers to geojson update repeatedly
+function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+}
+async function updateTextArea()
+{
+        for (let i = 0; i < 2; i++) {
+                await sleep(i * 300);
+        }
+        var collection = {
+                "type": "FeatureCollection",
+                "features": []
+        };
+        map.eachLayer(function (layer) {
+                if (layer instanceof L.Marker) {
+                        var geojson = layer.toGeoJSON();
+                        collection.features.push(geojson);
+                }
+        });
+        
+        $('.geojsontextarea').html(`${JSON.stringify(collection)}`);
+        setTimeout(updateTextArea, 50);
+}
+updateTextArea();
+
+//dropdown menu bug
+function initializeUI()
+{
+        $('.ui.dropdown')
+                .dropdown('refresh')
+        ;
+}
+initializeUI();
+
+//export coordinates.json
+function exportGeoJson(){
+        var dlGeoJsonData = $('.geojsontextarea').val();
+        var a = document.createElement('a');
+        a.setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(dlGeoJsonData));
+        a.setAttribute('download', 'coordinates.json');
+        a.click();
+}
+
+//toggle specific markers by explosive type
+async function addToggleMarkers()
+{
+        for (let i = 0; i < 2; i++) {
+                await sleep(i * 1000);
+        }
+        arrayOfAllArrays = []
+        map.eachLayer(function (layer) {
+                if (layer instanceof L.Marker) {
+                        var tempMarkerTitle = layer.options.title;
+                        var arrayID = returnMarkerTitleReverse(tempMarkerTitle).substring(0,5).replace('-','');
+                        var flag = eval('"' + arrayID + '"' + ' in window');
+                        if (flag) //condition: if array exist
+                        {
+                                if (eval(arrayID + ".includes(layer)"))
+                                {
+                                        //console.log("true layer already exist")
+                                }
+                                else {eval(arrayID + ".push(layer);");}
+                        }
+                        else //condition: if array does not exist
+                        {
+                                eval(arrayID + " = [];");
+                                eval(arrayID + ".push(layer);");
+                                arrayOfAllArrays.push(arrayID);
+                        }
+                }
+        });
+        arrayOfAllArrays.forEach(element => {
+                var a = L.layerGroup(eval(element));
+                layerControl.addOverlay(a, element);
+        });
+        setTimeout(addToggleMarkers, 500);
+}
+addToggleMarkers();
+
+//lat lng on mousemove
+var controlBottomRight = L.control({ position: "bottomright" });
+controlBottomRight.onAdd = function(map)
+{
+        var div = L.DomUtil.create("div", "coordinate");
+        return div;
+}
+$('.coordinate').attr('id','coordinate')
+controlBottomRight.addTo(map);
+map.on('mousemove', function(e)
+{
+        $('.coordinate').html(`Lat: ${e.latlng.lat} Lng: ${e.latlng.lng}`)
+})
+map.on('zoomend', function()
+{
+        if (map.getZoom() == 3)
+        {
+                $('.coordinate').css("color", "#000000")
+        }
+        else if(map.getZoom() > 3)
+        {
+                $('.coordinate').css("color", "#e6e6e6")
+        }
+})
+//'Alt+C' hotkey for copying mouse coordinates
+function checkKeyPressed(evnt) 
+{
+        var evtobj = window.event? event : e
+        if (evtobj.keyCode == 67 && evtobj.altKey)
+        {
+                var copyMouseCoordinatesText = document.getElementsByClassName("coordinate")[0].innerHTML;
+                const copyContent = async () => 
+                {
+                        try 
+                        {
+                                await navigator.clipboard.writeText(copyMouseCoordinatesText);
+                                $.toast({position: 'bottom center', displayTime: 1000, class: 'success', message: `Mouse Coordinates Copied!`});
+                        } 
+                        catch (err) 
+                        {
+                                console.error('Failed to copy: ', err);
+                        }
+                }
+                copyContent()
+        }
+}
+document.onkeydown = checkKeyPressed;
+
+//GeoJson Button & Modal
+L.easyButton('<img id="locationpic" src="./icons/png/location-edit-alt.png">', function(btn, map){
+        $('.large.modal').modal('show');
+}).addTo(map);
+function copyGeoJson() 
+{
+        var cpGeoJsonData = $('.geojsontextarea').val();
+        const copyContent = async () => 
+        {
+                try 
+                {
+                        await navigator.clipboard.writeText(cpGeoJsonData);
+                        $.toast({position: 'bottom center', displayTime: 1000, class: 'success', message: `Data Copied!`});
+                } 
+                catch (err) 
+                {
+                        console.error('Failed to copy: ', err);
+                }
+        }
+        copyContent()
+}
+</script>
+</body></html>
